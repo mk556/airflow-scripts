@@ -24,6 +24,7 @@ dag = DAG(
     'example_spark_bq_airflow',catchup=False, default_args=default_args, schedule_interval="00 04 * * *")
 
 def dynamic_date(date_offset):
+    ''' subtracts date_offset from execution_date and returns a tuple'''
 
     date_config = "{{ (execution_date - macros.timedelta(days="+str(date_offset)+")).strftime(\"%d\") }}"
     month_config = "{{ (execution_date - macros.timedelta(days="+str(date_offset)+")).strftime(\"%m\") }}"
@@ -33,6 +34,7 @@ def dynamic_date(date_offset):
 
 
 def gcs_prefix_check(date_offset):
+    ''' returns string in format YYYY/MM/DD emulating sample directory structure in GCS'''
 
     date_dict = dynamic_date(date_offset)
     return date_dict["year"]+"/"+date_dict["month"]+"/"+date_dict["date"]
@@ -43,7 +45,7 @@ gcs_prefix_check = GoogleCloudStoragePrefixSensor(
     task_id="gcs_prefix_check",
     bucket="example-bucket",
     prefix="dir1/dir2"+gcs_prefix_check(3)
-)
+) # GoogleCloudStoragePrefixSensor checks GCS for the existence of any BLOB which matches operator's prefix
 
 
 
@@ -71,7 +73,7 @@ start_cluster_example = DataprocClusterCreateOperator(
         retries= 1,
         retry_delay=timedelta(minutes=1),
 
-    )
+    ) #starts a dataproc cluster
 
 
 stop_cluster_example = DataprocClusterDeleteOperator(
@@ -80,7 +82,7 @@ stop_cluster_example = DataprocClusterDeleteOperator(
     cluster_name='example-{{ ds }}',
     project_id="your-project-id",
     region="us-central1",
-    )
+    ) #stops a running dataproc cluster
 
 
 DATAPROC_SPARK_PROP= {
@@ -92,12 +94,12 @@ DATAPROC_SPARK_PROP= {
 'spark.driver.userClassPathFirst':'true',
 'spark.executor.userClassPathFirst':'true',
 'spark.yarn.maxAppAttempts':'1'
-}
+} # Dict mentioning Spark job's properties
 
 DATAPROC_SPARK_JARS = ['gs://example-bucket/runnableJars/example-jar.jar']
 
 
-date_tuple = dynamic_date(3)
+date_tuple = dynamic_date(3) # Suppose we are processing 3 days ago's data - mimics a lag in arrival and processing of data
 
 run_spark_job = DataProcSparkOperator(
    dag=dag,
@@ -118,7 +120,7 @@ load_to_bq = GoogleCloudStorageToBigQueryOperator(
     write_disposition = 'WRITE_APPEND',
 
 
-)
+) # Takes a list of GCS URIs and loads it to Bigquery
 
 
 gcs_prefix_check >> start_cluster_example >> run_spark_job >> stop_cluster_example >> load_to_bq
